@@ -101,9 +101,11 @@ function required_for_pub_field_widget_form_alter(&$element, &$form_state, $cont
     // from the root element, currently need to be mapped manually.
     // @see required_for_pub_field_widget_form_element_parents()
     if (empty($element['#field_name'])) {
-      if ($parents = required_for_pub_field_widget_form_element_parents($context)) {
-        $real_element = &drupal_array_get_nested_value($element, $parents);
-        return required_for_pub_field_widget_form_alter($real_element, $form_state, $context);
+      if (is_array($element)) {
+        if (!$key = key($element)) {
+          return required_for_pub_field_widget_form_alter($element[0], $form_state, $context);
+        }
+        return required_for_pub_field_widget_form_alter($element[$key], $form_state, $context);
       }
       drupal_set_message(t('Field type @field_type is not supported by the Require to publish module.', array('@field_type' => $context['field']['type'])), 'warning');
       return;
@@ -129,42 +131,6 @@ function required_for_pub_field_widget_form_alter(&$element, &$form_state, $cont
 }
 
 /**
- * Map from field types with widget form elements outside of the element root.
- *
- * @param array $context
- *   An associative array containing the following key-value pairs, matching the
- *   arguments received by hook_field_widget_form():
- *   - form: The form structure to which widgets are being attached. This may be
- *     a full form structure, or a sub-element of a larger form.
- *   - field: The field structure.
- *   - instance: The field instance structure.
- *   - langcode: The language associated with $items.
- *   - items: Array of default values for this field.
- *   - delta: The order of this item in the array of subelements (0, 1, 2, etc).
- */
-function required_for_pub_field_widget_form_element_parents($context) {
-  $field_type_parents = array(
-    'entityreference' => array('target_id'),
-    'number_decimal' => array('value'),
-    'number_float' => array('value'),
-    'number_integer' => array('value'),
-  );
-  $field_type = $context['field']['type'];
-  $widget_type = $context['instance']['widget']['type'];
-
-  $parents = isset($field_type_parents[$field_type]) ? $field_type_parents[$context['field']['type']] : FALSE;
-
-  // Alter hooks for unsupported fields / widgets.
-  $hooks = array(
-    'required_for_pub_element_parents',
-    'required_for_pub_element_' . $field_type . '_parents',
-    'required_for_pub_element_' . $field_type . '_' . $widget_type . '_parents',
-  );
-  drupal_alter($hooks, $parents, $context);
-  return $parents;
-}
-
-/**
  * Element validate callback for "Required for publishing" fields.
  */
 function required_for_pub_field_widget_element_validate(&$element, &$form_state) {
@@ -176,7 +142,7 @@ function required_for_pub_field_widget_element_validate(&$element, &$form_state)
     // Get field items from form input.
     $form_base = &drupal_array_get_nested_value($form_state['values'], $element['#field_parents']);
     $field_items = $form_base[$element['#field_name']][$element['#language']];
-    $item = reset($field_items);
+    $item = is_array($field_items) ? reset($field_items) : $field_items;
 
     // Check if field is empty.
     $field = field_widget_field($element, $form_state);
